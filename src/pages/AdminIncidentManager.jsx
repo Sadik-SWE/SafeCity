@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../services/api.js';
+import { useIncidentRealtime } from '../hooks/useIncidentRealtime.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
 export const AdminIncidentManager = () => {
@@ -43,6 +44,24 @@ export const AdminIncidentManager = () => {
 
   useEffect(() => {
     fetchIncidents();
+  }, [search, category, status, riskLevel]);
+
+  // Real-time updates for admin table
+  useIncidentRealtime((event) => {
+    if (event.eventType === 'INSERT' && event.incident) {
+      setIncidents((prev) => {
+        const exists = prev.some((i) => (i._id === event.incident._id || i.id === event.incident.id));
+        if (exists) return prev;
+        return [event.incident, ...prev];
+      });
+    } else if (event.eventType === 'UPDATE' && event.incident) {
+      setIncidents((prev) =>
+        prev.map((i) => (i._id === event.incident._id || i.id === event.incident.id ? { ...i, ...event.incident } : i))
+      );
+    } else if (event.eventType === 'DELETE' && event.incident) {
+      const targetId = event.incident._id || event.incident.id;
+      setIncidents((prev) => prev.filter((i) => (i._id !== targetId && i.id !== targetId)));
+    }
   }, [search, category, status, riskLevel]);
 
   const handleVerifyToggle = async (incident) => {

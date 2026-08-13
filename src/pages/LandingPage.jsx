@@ -19,6 +19,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { api } from '../services/api.js';
+import { useIncidentRealtime } from '../hooks/useIncidentRealtime.js';
 import IncidentCard from '../components/IncidentCard.jsx';
 import IncidentMap from '../components/IncidentMap.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -38,26 +39,60 @@ export const LandingPage = () => {
     verified: 0,
   });
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await api.getIncidents();
-        if (res.success && res.incidents) {
-          setIncidents(res.incidents);
-          setLatestIncidents(res.incidents.slice(0, 3));
-          const total = res.incidents.length;
-          const resolved = res.incidents.filter((i) => i.status === 'RESOLVED').length;
-          const verified = res.incidents.filter((i) => i.verifiedByAdmin || i.status === 'VERIFIED').length;
-          const active = res.incidents.filter((i) => i.status !== 'RESOLVED' && i.status !== 'REJECTED').length;
-          setStats({ total, resolved, active, verified });
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const recalculateStats = (list) => {
+    const total = list.length;
+    const resolved = list.filter((i) => i.status === 'RESOLVED').length;
+    const verified = list.filter((i) => i.verifiedByAdmin || i.status === 'VERIFIED').length;
+    const active = list.filter((i) => i.status !== 'RESOLVED' && i.status !== 'REJECTED').length;
+    setStats({ total, resolved, active, verified });
+  };
+
+  const loadData = async () => {
+    try {
+      const res = await api.getIncidents();
+      if (res.success && res.incidents) {
+        setIncidents(res.incidents);
+        setLatestIncidents(res.incidents.slice(0, 3));
+        recalculateStats(res.incidents);
       }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
+  }, []);
+
+  // Real-time subscription hook: instant reactivity for incoming reports, edits, or deletes
+  useIncidentRealtime((event) => {
+    if (event.eventType === 'INSERT' && event.incident) {
+      setIncidents((prev) => {
+        const exists = prev.some((i) => (i._id === event.incident._id || i.id === event.incident.id));
+        if (exists) return prev;
+        const updated = [event.incident, ...prev];
+        recalculateStats(updated);
+        return updated;
+      });
+      setLatestIncidents((prev) => [event.incident, ...prev.filter((i) => (i._id !== event.incident._id && i.id !== event.incident.id))].slice(0, 3));
+    } else if (event.eventType === 'UPDATE' && event.incident) {
+      setIncidents((prev) => {
+        const updated = prev.map((i) => (i._id === event.incident._id || i.id === event.incident.id ? { ...i, ...event.incident } : i));
+        recalculateStats(updated);
+        return updated;
+      });
+      setLatestIncidents((prev) => prev.map((i) => (i._id === event.incident._id || i.id === event.incident.id ? { ...i, ...event.incident } : i)));
+    } else if (event.eventType === 'DELETE' && event.incident) {
+      const targetId = event.incident._id || event.incident.id;
+      setIncidents((prev) => {
+        const updated = prev.filter((i) => (i._id !== targetId && i.id !== targetId));
+        recalculateStats(updated);
+        return updated;
+      });
+      setLatestIncidents((prev) => prev.filter((i) => (i._id !== targetId && i.id !== targetId)));
+    }
   }, []);
 
   return (

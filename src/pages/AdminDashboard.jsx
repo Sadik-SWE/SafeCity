@@ -24,6 +24,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { api } from '../services/api.js';
+import { useIncidentRealtime } from '../hooks/useIncidentRealtime.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import IncidentFrequencyChart from '../components/IncidentFrequencyChart.jsx';
 
@@ -42,7 +43,6 @@ export const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = async () => {
-    setLoading(true);
     try {
       const res = await api.getAnalyticsOverview();
       if (res.success && res.analytics) {
@@ -56,6 +56,11 @@ export const AdminDashboard = () => {
   };
 
   useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  // Real-time listener: refresh metrics automatically when an incident event fires
+  useIncidentRealtime(() => {
     fetchAnalytics();
   }, []);
 

@@ -7,6 +7,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
 import SupabaseStatusBanner from './components/SupabaseStatusBanner.jsx';
+import LiveIncidentNotification from './components/LiveIncidentNotification.jsx';
 
 // Pages
 import LandingPage from './pages/LandingPage.jsx';
@@ -99,6 +100,7 @@ function AppLayout() {
         </main>
       </div>
 
+      <LiveIncidentNotification />
       <Footer />
     </div>
   );

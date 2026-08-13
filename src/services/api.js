@@ -1,4 +1,13 @@
-import { fetchSupabaseIncidents, createSupabaseIncident, fetchSupabaseEmergencyServices, createSupabaseUser, deleteSupabaseIncident } from './supabase.js';
+import {
+  fetchSupabaseIncidents,
+  createSupabaseIncident,
+  updateSupabaseIncident,
+  deleteSupabaseIncident,
+  fetchSupabaseEmergencyServices,
+  createSupabaseUser,
+  broadcastIncidentEvent,
+  normalizeIncident,
+} from './supabase.js';
 
 const API_BASE = '/api';
 
@@ -62,14 +71,17 @@ export const api = {
     if (params.riskLevel) query.append('riskLevel', params.riskLevel);
     if (params.search) query.append('search', params.search);
     if (params.myReportsOnly) query.append('myReportsOnly', 'true');
-    
+
     // Attempt local API first
     try {
       const res = await request(`/incidents?${query.toString()}`);
+      if (res.success && Array.isArray(res.incidents)) {
+        res.incidents = res.incidents.map(normalizeIncident);
+      }
       return res;
     } catch (err) {
       // Fallback to Supabase
-      const supabaseData = await fetchSupabaseIncidents();
+      const supabaseData = await fetchSupabaseIncidents(params);
       if (supabaseData) {
         return { success: true, count: supabaseData.length, incidents: supabaseData };
       }
@@ -77,37 +89,80 @@ export const api = {
     }
   },
 
-  getIncidentById: (id) => request(`/incidents/${id}`),
+  getIncidentById: async (id) => {
+    try {
+      const res = await request(`/incidents/${id}`);
+      if (res.incident) {
+        res.incident = normalizeIncident(res.incident);
+      }
+      return res;
+    } catch (err) {
+      const supabaseData = await fetchSupabaseIncidents();
+      const match = supabaseData?.find((i) => (i._id === id || i.id === id));
+      if (match) {
+        return { success: true, incident: match };
+      }
+      throw err;
+    }
+  },
+
   createIncident: async (body) => {
     const res = await request('/incidents', { method: 'POST', body: JSON.stringify(body) });
-    // Also try syncing to Supabase in background
+    
+    // Normalized incident object
+    const createdIncident = normalizeIncident(res.incident || body);
+    
+    // Sync to Supabase in background & broadcast real-time update
     createSupabaseIncident(body).catch((e) => console.log('Supabase sync notice:', e));
+    broadcastIncidentEvent('INSERT', createdIncident);
+
     return res;
   },
-  updateIncident: (id, body) => request(`/incidents/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  updateIncident: async (id, body) => {
+    const res = await request(`/incidents/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    const updated = normalizeIncident(res.incident || { _id: id, ...body });
+    updateSupabaseIncident(id, body).catch((e) => console.log('Supabase sync notice:', e));
+    broadcastIncidentEvent('UPDATE', updated);
+    return res;
+  },
+
   deleteIncident: async (id, title) => {
     try {
       const res = await request(`/admin/incidents/${id}`, { method: 'DELETE' });
-      if (title) deleteSupabaseIncident(id, title).catch(e => console.log('Supabase sync notice:', e));
+      deleteSupabaseIncident(id, title).catch((e) => console.log('Supabase sync notice:', e));
+      broadcastIncidentEvent('DELETE', { _id: id, id, title });
       return res;
     } catch (adminErr) {
       try {
         const resUser = await request(`/incidents/${id}`, { method: 'DELETE' });
-        if (title) deleteSupabaseIncident(id, title).catch(e => console.log('Supabase sync notice:', e));
+        deleteSupabaseIncident(id, title).catch((e) => console.log('Supabase sync notice:', e));
+        broadcastIncidentEvent('DELETE', { _id: id, id, title });
         return resUser;
       } catch (userErr) {
-        if (title) await deleteSupabaseIncident(id, title);
+        if (title || id) await deleteSupabaseIncident(id, title);
+        broadcastIncidentEvent('DELETE', { _id: id, id, title });
         throw adminErr;
       }
     }
   },
 
-  // Admin
-  updateIncidentStatus: (id, body) =>
-    request(`/admin/incidents/${id}/status`, { method: 'PUT', body: JSON.stringify(body) }),
+  // Admin Actions
+  updateIncidentStatus: async (id, body) => {
+    const res = await request(`/admin/incidents/${id}/status`, { method: 'PUT', body: JSON.stringify(body) });
+    const updated = normalizeIncident(res.incident || { _id: id, ...body });
+    updateSupabaseIncident(id, body).catch((e) => console.log('Supabase sync notice:', e));
+    broadcastIncidentEvent('UPDATE', updated);
+    return res;
+  },
 
-  verifyIncident: (id, body) =>
-    request(`/admin/incidents/${id}/verify`, { method: 'PUT', body: JSON.stringify(body) }),
+  verifyIncident: async (id, body) => {
+    const res = await request(`/admin/incidents/${id}/verify`, { method: 'PUT', body: JSON.stringify(body) });
+    const updated = normalizeIncident(res.incident || { _id: id, verifiedByAdmin: body.verified });
+    updateSupabaseIncident(id, { verifiedByAdmin: body.verified }).catch((e) => console.log('Supabase sync notice:', e));
+    broadcastIncidentEvent('UPDATE', updated);
+    return res;
+  },
 
   getUsers: () => request('/admin/users'),
   getAdminUsers: () => request('/admin/users'),
@@ -140,7 +195,7 @@ export const api = {
     try {
       return await request(`/emergency-services?${query.toString()}`);
     } catch (err) {
-      const supa = await fetchSupabaseEmergencyServices();
+      const supa = await fetchSupabaseEmergencyServices(params.type);
       if (supa) {
         return { success: true, count: supa.length, services: supa };
       }

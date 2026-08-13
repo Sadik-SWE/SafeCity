@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Filter, MapPin, Grid, ShieldAlert, Sparkles } from 'lucide-react';
 import { api } from '../services/api.js';
+import { useIncidentRealtime } from '../hooks/useIncidentRealtime.js';
 import IncidentCard from '../components/IncidentCard.jsx';
 import IncidentMap from '../components/IncidentMap.jsx';
 
@@ -36,6 +37,31 @@ export const IncidentListPage = () => {
 
   useEffect(() => {
     fetchIncidents();
+  }, [search, category, status, riskLevel]);
+
+  // Real-time listener for incoming incidents or status changes
+  useIncidentRealtime((event) => {
+    if (event.eventType === 'INSERT' && event.incident) {
+      const matchesSearch = !search || event.incident.title?.toLowerCase().includes(search.toLowerCase()) || event.incident.locationName?.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = category === 'ALL' || event.incident.category === category;
+      const matchesStatus = status === 'ALL' || event.incident.status === status;
+      const matchesRisk = riskLevel === 'ALL' || event.incident.riskLevel === riskLevel;
+
+      if (matchesSearch && matchesCategory && matchesStatus && matchesRisk) {
+        setIncidents((prev) => {
+          const exists = prev.some((i) => (i._id === event.incident._id || i.id === event.incident.id));
+          if (exists) return prev;
+          return [event.incident, ...prev];
+        });
+      }
+    } else if (event.eventType === 'UPDATE' && event.incident) {
+      setIncidents((prev) =>
+        prev.map((i) => (i._id === event.incident._id || i.id === event.incident.id ? { ...i, ...event.incident } : i))
+      );
+    } else if (event.eventType === 'DELETE' && event.incident) {
+      const targetId = event.incident._id || event.incident.id;
+      setIncidents((prev) => prev.filter((i) => (i._id !== targetId && i.id !== targetId)));
+    }
   }, [search, category, status, riskLevel]);
 
   return (

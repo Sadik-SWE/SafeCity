@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PlusCircle, FileText, MapPin, Compass } from 'lucide-react';
 import { api } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useIncidentRealtime } from '../hooks/useIncidentRealtime.js';
 import IncidentCard from '../components/IncidentCard.jsx';
 import IncidentMap from '../components/IncidentMap.jsx';
 
@@ -36,6 +37,27 @@ export const CitizenDashboard = () => {
   useEffect(() => {
     fetchMyReports();
   }, []);
+
+  // Real-time listener for user reports & map updates
+  useIncidentRealtime((event) => {
+    if (event.eventType === 'INSERT' && event.incident) {
+      setAllIncidents((prev) => {
+        const exists = prev.some((i) => (i._id === event.incident._id || i.id === event.incident.id));
+        if (exists) return prev;
+        return [event.incident, ...prev];
+      });
+      if (event.incident.reporterId === user?._id || event.incident.reporter?._id === user?._id) {
+        setMyIncidents((prev) => [event.incident, ...prev.filter((i) => (i._id !== event.incident._id && i.id !== event.incident.id))]);
+      }
+    } else if (event.eventType === 'UPDATE' && event.incident) {
+      setAllIncidents((prev) => prev.map((i) => (i._id === event.incident._id || i.id === event.incident.id ? { ...i, ...event.incident } : i)));
+      setMyIncidents((prev) => prev.map((i) => (i._id === event.incident._id || i.id === event.incident.id ? { ...i, ...event.incident } : i)));
+    } else if (event.eventType === 'DELETE' && event.incident) {
+      const targetId = event.incident._id || event.incident.id;
+      setAllIncidents((prev) => prev.filter((i) => (i._id !== targetId && i.id !== targetId)));
+      setMyIncidents((prev) => prev.filter((i) => (i._id !== targetId && i.id !== targetId)));
+    }
+  }, [user?._id]);
 
   const totalReports = myIncidents.length;
   const pendingReports = myIncidents.filter((i) => i.status === 'PENDING').length;

@@ -1,0 +1,6 @@
+{
+  "name": "Bangladesh Emergency & Citizen Safety Portal",
+  "description": "Smart Emergency Hotline & Incident Reporting Portal for Bangladesh powered by Supabase & Gemini AI",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

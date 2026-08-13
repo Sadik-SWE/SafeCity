@@ -1,21 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabaseServer, isSupabaseConfigured } from '../services/supabase.js';
 import { User, Incident, NotificationItem, EmergencyService } from '../../src/types';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
-
-const supabaseServer: SupabaseClient | null = (
-  supabaseUrl && 
-  supabaseUrl !== 'https://your-project.supabase.co' && 
-  supabaseKey && 
-  supabaseKey !== 'your-anon-key'
-) ? createClient(supabaseUrl, supabaseKey) : null;
 
 interface DatabaseSchema {
   users: User[];
@@ -145,13 +135,13 @@ class Store {
         .upsert(payload, { onConflict: 'email' });
 
       if (error) {
-        console.warn(`Supabase user sync error for ${user.email}:`, error.message);
+        console.debug(`Supabase user sync notice for ${user.email}:`, error.message);
         return false;
       }
       console.log(`Successfully synced user ${user.email} to Supabase users table.`);
       return true;
     } catch (err: any) {
-      console.warn(`Failed to sync user ${user.email} to Supabase:`, err.message || err);
+      console.debug(`Supabase user sync notice for ${user.email}:`, err.message || err);
       return false;
     }
   }

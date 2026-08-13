@@ -13,9 +13,15 @@ const supabaseAnonKey =
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
+  typeof supabaseUrl === 'string' &&
+  supabaseUrl.startsWith('https://') &&
   supabaseUrl !== 'https://your-project.supabase.co' &&
+  !supabaseUrl.includes('your-project') &&
   !supabaseUrl.includes('placeholder') &&
+  !supabaseUrl.includes('example.com') &&
   supabaseAnonKey &&
+  typeof supabaseAnonKey === 'string' &&
+  supabaseAnonKey.length >= 20 &&
   supabaseAnonKey !== 'your-anon-key' &&
   !supabaseAnonKey.includes('placeholder')
 );
@@ -376,12 +382,12 @@ export async function createSupabaseUser(userData) {
       .select();
 
     if (error) {
-      console.warn('Supabase user sync error:', error.message);
+      console.debug('Supabase user sync notice:', error.message);
       return null;
     }
     return data?.[0];
   } catch (err) {
-    console.warn('Supabase user sync failed:', err);
+    console.debug('Supabase user sync notice:', err?.message || err);
     return null;
   }
 }

@@ -42,14 +42,14 @@ export const api = {
   register: async (body) => {
     const res = await request('/auth/register', { method: 'POST', body: JSON.stringify(body) });
     if (res.success && res.user) {
-      createSupabaseUser(res.user).catch((e) => console.log('Supabase sync notice:', e));
+      createSupabaseUser(res.user).catch((e) => console.debug('Supabase sync notice:', e));
     }
     return res;
   },
   login: async (body) => {
     const res = await request('/auth/login', { method: 'POST', body: JSON.stringify(body) });
     if (res.success && res.user) {
-      createSupabaseUser(res.user).catch((e) => console.log('Supabase sync notice:', e));
+      createSupabaseUser(res.user).catch((e) => console.debug('Supabase sync notice:', e));
     }
     return res;
   },
@@ -57,7 +57,7 @@ export const api = {
   updateProfile: async (body) => {
     const res = await request('/auth/profile', { method: 'PUT', body: JSON.stringify(body) });
     if (res.success && res.user) {
-      createSupabaseUser(res.user).catch((e) => console.log('Supabase sync notice:', e));
+      createSupabaseUser(res.user).catch((e) => console.debug('Supabase sync notice:', e));
     }
     return res;
   },
@@ -113,7 +113,7 @@ export const api = {
     const createdIncident = normalizeIncident(res.incident || body);
     
     // Sync to Supabase in background & broadcast real-time update
-    createSupabaseIncident(body).catch((e) => console.log('Supabase sync notice:', e));
+    createSupabaseIncident(body).catch((e) => console.debug('Supabase sync notice:', e));
     broadcastIncidentEvent('INSERT', createdIncident);
 
     return res;
@@ -122,7 +122,7 @@ export const api = {
   updateIncident: async (id, body) => {
     const res = await request(`/incidents/${id}`, { method: 'PUT', body: JSON.stringify(body) });
     const updated = normalizeIncident(res.incident || { _id: id, ...body });
-    updateSupabaseIncident(id, body).catch((e) => console.log('Supabase sync notice:', e));
+    updateSupabaseIncident(id, body).catch((e) => console.debug('Supabase sync notice:', e));
     broadcastIncidentEvent('UPDATE', updated);
     return res;
   },
@@ -130,13 +130,13 @@ export const api = {
   deleteIncident: async (id, title) => {
     try {
       const res = await request(`/admin/incidents/${id}`, { method: 'DELETE' });
-      deleteSupabaseIncident(id, title).catch((e) => console.log('Supabase sync notice:', e));
+      deleteSupabaseIncident(id, title).catch((e) => console.debug('Supabase sync notice:', e));
       broadcastIncidentEvent('DELETE', { _id: id, id, title });
       return res;
     } catch (adminErr) {
       try {
         const resUser = await request(`/incidents/${id}`, { method: 'DELETE' });
-        deleteSupabaseIncident(id, title).catch((e) => console.log('Supabase sync notice:', e));
+        deleteSupabaseIncident(id, title).catch((e) => console.debug('Supabase sync notice:', e));
         broadcastIncidentEvent('DELETE', { _id: id, id, title });
         return resUser;
       } catch (userErr) {
@@ -151,7 +151,7 @@ export const api = {
   updateIncidentStatus: async (id, body) => {
     const res = await request(`/admin/incidents/${id}/status`, { method: 'PUT', body: JSON.stringify(body) });
     const updated = normalizeIncident(res.incident || { _id: id, ...body });
-    updateSupabaseIncident(id, body).catch((e) => console.log('Supabase sync notice:', e));
+    updateSupabaseIncident(id, body).catch((e) => console.debug('Supabase sync notice:', e));
     broadcastIncidentEvent('UPDATE', updated);
     return res;
   },
@@ -159,7 +159,7 @@ export const api = {
   verifyIncident: async (id, body) => {
     const res = await request(`/admin/incidents/${id}/verify`, { method: 'PUT', body: JSON.stringify(body) });
     const updated = normalizeIncident(res.incident || { _id: id, verifiedByAdmin: body.verified });
-    updateSupabaseIncident(id, { verifiedByAdmin: body.verified }).catch((e) => console.log('Supabase sync notice:', e));
+    updateSupabaseIncident(id, { verifiedByAdmin: body.verified }).catch((e) => console.debug('Supabase sync notice:', e));
     broadcastIncidentEvent('UPDATE', updated);
     return res;
   },
